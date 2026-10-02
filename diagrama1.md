@@ -1,6 +1,7 @@
 ```mermaid
+%%{init: {'theme': 'dark'}}%%
 flowchart LR
-    %% Definición de estilos y subgrafos (Capas)
+    %% Definición de subgrafos (Capas)
     subgraph Capa_Seguridad [API Gateway & Seguridad]
         gateway[Nginx / Gateway]
         auth[Autenticación JWT]
@@ -16,10 +17,10 @@ flowchart LR
         db_cache[(Redis Cache)]
     end
 
-    %% Componentes Externos
-    usuario[fa:fa-user Usuario / Cliente Web]
+    %% Componente Cliente sin estilos conflictivos
+    usuario[Usuario / Cliente Web]
 
-    %% Flujos y Conexiones del Sistema
+    %% Flujos y Conexiones
     usuario -- Petición HTTPS --> gateway
     gateway --> auth
     auth -- Token Válido --> api_pedidos
@@ -28,10 +29,4 @@ flowchart LR
     api_pedidos --> db_principal
     api_usuarios --> db_principal
     api_pedidos --> db_cache
-
-    %% Estilos Visuales para GitHub
-    style usuario fill:#f9f,stroke:#333,stroke-width:2px
-    style db_principal fill:#bbf,stroke:#333,stroke-width:2px
-    style db_cache fill:#fbb,stroke:#333,stroke-width:2px
-
 ```
