@@ -1,31 +1,37 @@
 ```mermaid
-architecture-beta
-    group api_gateway(cloud)[API Gateway & Seguridad]
-    group backend_services(server)[Servicios Backend]
-    group database_layer(database)[Almacenamiento]
+flowchart LR
+    %% Definición de estilos y subgrafos (Capas)
+    subgraph Capa_Seguridad [API Gateway & Seguridad]
+        gateway[Nginx / Gateway]
+        auth[Autenticación JWT]
+    end
 
-    %% Componentes del Cliente
-    node usuario(user)[Usuario / Cliente Web]
+    subgraph Capa_Backend [Servicios Backend]
+        api_pedidos[API Pedidos]
+        api_usuarios[API Usuarios]
+    end
 
-    %% Componentes del API Gateway
-    node gateway(internet)[Nginx / Gateway] in api_gateway
-    node auth(lock)[Autenticación JWT] in api_gateway
+    subgraph Capa_Datos [Almacenamiento]
+        db_principal[(PostgreSQL)]
+        db_cache[(Redis Cache)]
+    end
 
-    %% Componentes del Backend
-    node api_pedidos(cog)[API Pedidos] in backend_services
-    node api_usuarios(users)[API Usuarios] in backend_services
-
-    %% Componentes de Base de Datos
-    node db_principal(database)[PostgreSQL] in database_layer
-    node db_cache(clock)[Redis Cache] in database_layer
+    %% Componentes Externos
+    usuario[fa:fa-user Usuario / Cliente Web]
 
     %% Flujos y Conexiones del Sistema
-    usuario:right -- Petición HTTPS --> gateway
-    gateway:down --> auth
-    auth:right -- Token Válido --> api_pedidos
-    auth:right --> api_usuarios
+    usuario -- Petición HTTPS --> gateway
+    gateway --> auth
+    auth -- Token Válido --> api_pedidos
+    auth -- Token Válido --> api_usuarios
     
-    api_pedidos:down --> db_principal
-    api_usuarios:down --> db_principal
-    api_pedidos:right --> db_cache
+    api_pedidos --> db_principal
+    api_usuarios --> db_principal
+    api_pedidos --> db_cache
+
+    %% Estilos Visuales para GitHub
+    style usuario fill:#f9f,stroke:#333,stroke-width:2px
+    style db_principal fill:#bbf,stroke:#333,stroke-width:2px
+    style db_cache fill:#fbb,stroke:#333,stroke-width:2px
+
 ```
