@@ -1,3 +1,4 @@
+```mermaid
 architecture-beta
     group api_gateway(cloud)[API Gateway & Seguridad]
     group backend_services(server)[Servicios Backend]
@@ -27,3 +28,4 @@ architecture-beta
     api_pedidos:down --> db_principal
     api_usuarios:down --> db_principal
     api_pedidos:right --> db_cache
+```
