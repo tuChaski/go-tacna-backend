@@ -1,4 +1,3 @@
-```mermaid
 %%{init: {'theme': 'dark'}}%%
 flowchart LR
     %% Definición de subgrafos (Capas)
@@ -29,4 +28,3 @@ flowchart LR
     api_pedidos --> db_principal
     api_usuarios --> db_principal
     api_pedidos --> db_cache
-```
