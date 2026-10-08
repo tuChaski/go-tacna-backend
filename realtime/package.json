@@ -1,0 +1,33 @@
+{
+  "name": "rutas-en-tiempo-real-backend",
+  "version": "1.0.0",
+  "description": "Servidor del proyecto: **API REST** (`api/`) y **servidor de tiempo real** (`realtime/`).",
+  "main": "src/server.js",
+  "scripts": {
+    "start" : "node src/server.js",
+    "dev": "node --watch --env-file=.env src/server.js",
+    "test": "node --test"
+
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuChaski/go-tacna-backend.git"
+  },
+  "keywords": [],
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/tuChaski/go-tacna-backend/issues"
+  },
+  "homepage": "https://github.com/tuChaski/go-tacna-backend#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.1",
+  "jsonwebtoken": "^9.0.2",
+  "express-rate-limit": "^8.1.0",
+  "cors": "^2.8.5",
+  "dotenv": "^16.4.0"    
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
