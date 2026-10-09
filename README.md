@@ -1,4 +1,4 @@
-# Rutas en Tiempo Real — Backend
+# go-tacna — Backend
 
 Servidor del proyecto: **API REST** (`api/`) y **servidor de tiempo real** (`realtime/`).
 
@@ -8,12 +8,12 @@ Servidor del proyecto: **API REST** (`api/`) y **servidor de tiempo real** (`rea
 
 ## ⚠️ Estado actual
 
-**Este repositorio está vacío.** Todo el código de backend vive hoy en el monorepo `rutas-en-tiempo-real-frontend/`:
+**Este repositorio está vacío.** Todo el código de backend vive hoy en el monorepo `go-tacna-frontend/`:
 
 | Componente | Ruta actual | Estado |
 |---|---|---|
-| `api/` | `rutas-en-tiempo-real-frontend/backend/` | esqueleto de Laravel 13, sin lógica de negocio |
-| `realtime/` | `rutas-en-tiempo-real-frontend/realtime/` | **funcional**, con pruebas |
+| `api/` | `go-tacna-frontend/backend/` | esqueleto de Laravel 13, sin lógica de negocio |
+| `realtime/` | `go-tacna-frontend/realtime/` | **funcional**, con pruebas |
 
 Este README describe el **diseño objetivo** de cada componente y, en `realtime/`, también el comportamiento exacto que ya está implementado. Al migrar el código, este README pasa a describir la estructura real.
 
@@ -85,8 +85,8 @@ php artisan key:generate
 #   DB_CONNECTION=pgsql
 #   DB_HOST=127.0.0.1
 #   DB_PORT=5432
-#   DB_DATABASE=rutatacna
-#   DB_USERNAME=rutatacna
+#   DB_DATABASE=gotacna
+#   DB_USERNAME=gotacna
 #   DB_PASSWORD=<tu clave>
 
 php artisan migrate
@@ -217,9 +217,9 @@ segundos = distancia_metros / max(velocidad_promedio, 2)
 
 Este repo **no** define los contratos; los consume.
 
-- **Contrato de la API** → `rutas-en-tiempo-real-docs/docs/openapi.yaml`
-- **Eventos WebSocket y claims del JWT** → `rutas-en-tiempo-real-docs`
-- **Proxy que expone `/api/` y `/socket.io/`** → `rutas-en-tiempo-real-infraestructura`
+- **Contrato de la API** → `go-tacna-docs/docs/openapi.yaml`
+- **Eventos WebSocket y claims del JWT** → `go-tacna-docs`
+- **Proxy que expone `/api/` y `/socket.io/`** → `go-tacna-infraestructura`
 
 Si un contrato cambia, se cambia primero en `docs/` y después se ajusta aquí.
 
@@ -258,10 +258,10 @@ Si un contrato cambia, se cambia primero en `docs/` y después se ajusta aquí.
 
 | Repositorio | Propósito |
 |---|---|
-| `rutas-en-tiempo-real-backend` | Este repositorio. API y tiempo real. |
-| `rutas-en-tiempo-real-frontend` | Web pública y panel de administración. |
-| `rutas-en-tiempo-real-movil` | App Android (Pasajero y Modo Conductor). |
-| `rutas-en-tiempo-real-infraestructura` | Docker, k3s, Traefik y despliegue. |
-| `rutas-en-tiempo-real-docs` | Informe, requisitos, contratos y cronograma. |
+| `go-tacna-backend` | Este repositorio. API y tiempo real. |
+| `go-tacna-frontend` | Web pública y panel de administración. |
+| `go-tacna-movil` | App Android (Pasajero y Modo Conductor). |
+| `go-tacna-infraestructura` | Docker, k3s, Traefik y despliegue. |
+| `go-tacna-docs` | Informe, requisitos, contratos y cronograma. |
 
-Tablero de tareas: [Planificación rutas-en-tiempo-real](https://github.com/orgs/tuChaski/projects/1)
+Tablero de tareas: [Planificación go-tacna](https://github.com/orgs/go-tacna/projects/1)
