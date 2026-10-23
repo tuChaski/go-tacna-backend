@@ -35,10 +35,14 @@ class ProxyController extends Controller
 
         try {
             $cliente = Http::withHeaders($this->cabecerasEntrada($request))
+                ->timeout((int) config('gateway.timeout', 60))
+                ->connectTimeout(5)
                 ->withOptions([
-                    'timeout' => (int) config('gateway.timeout', 30),
+                    'timeout' => (int) config('gateway.timeout', 60),
+                    'connect_timeout' => 5,
                     'http_errors' => false,
                     'verify' => (bool) config('gateway.verify_tls', true),
+                    'allow_redirects' => false,
                 ]);
 
             if (! in_array($metodo, ['GET', 'HEAD'], true) && $cuerpo !== '') {
