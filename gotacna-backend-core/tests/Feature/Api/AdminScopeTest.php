@@ -161,6 +161,69 @@ class AdminScopeTest extends TestCase
             ->assertJsonPath('data.0.usuario.correo', $adminEmpresa->correo)
             ->assertJsonPath('data.0.usuario.activo', true)
             ->assertJsonPath('data.0.empresa.razon_social', $empresa->razon_social)
-            ->assertJsonPath('data.0.empresa.activo', true);
+            ->assertJsonPath('data.0.empresa.activo', true)
+            ->assertJsonPath('meta.links.0.label', '&laquo; Anterior')
+            ->assertJsonPath('meta.links.1.label', '1')
+            ->assertJsonPath('meta.links.2.label', 'Siguiente &raquo;');
+    }
+
+    public function test_admin_empresa_solo_lee_administradores_de_sus_empresas(): void
+    {
+        $propia = Empresa::factory()->create();
+        $ajena = Empresa::factory()->create();
+        $admin = $this->adminEmpresaDe($propia);
+        $otroAdmin = Usuario::factory()->adminEmpresa()->create();
+
+        $perfilAjeno = AdministradorEmpresaPerfil::factory()->create([
+            'usuario_id' => $otroAdmin->id,
+            'empresa_id' => $ajena->id,
+        ]);
+
+        $perfilPropio = AdministradorEmpresaPerfil::where('usuario_id', $admin->id)
+            ->where('empresa_id', $propia->id)
+            ->firstOrFail();
+
+        $this->withHeaders($this->headersPara($admin))
+            ->getJson('/api/v1/administradores-empresa')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.empresa_id', $propia->id);
+
+        $this->withHeaders($this->headersPara($admin))
+            ->getJson('/api/v1/administradores-empresa/'.$perfilPropio->id)
+            ->assertOk();
+
+        $this->withHeaders($this->headersPara($admin))
+            ->getJson('/api/v1/administradores-empresa/'.$perfilAjeno->id)
+            ->assertForbidden();
+    }
+
+    public function test_admin_empresa_no_puede_escribir_administradores_de_empresa(): void
+    {
+        $propia = Empresa::factory()->create();
+        $admin = $this->adminEmpresaDe($propia);
+        $perfilPropio = AdministradorEmpresaPerfil::where('usuario_id', $admin->id)
+            ->where('empresa_id', $propia->id)
+            ->firstOrFail();
+
+        $this->withHeaders($this->headersPara($admin))
+            ->postJson('/api/v1/administradores-empresa', [
+                'usuario_id' => $admin->id,
+                'empresa_id' => $propia->id,
+                'cargo' => 'Gerente',
+            ])
+            ->assertForbidden();
+
+        $this->withHeaders($this->headersPara($admin))
+            ->putJson('/api/v1/administradores-empresa/'.$perfilPropio->id, [
+                'usuario_id' => $admin->id,
+                'empresa_id' => $propia->id,
+                'cargo' => 'Otro cargo',
+            ])
+            ->assertForbidden();
+
+        $this->withHeaders($this->headersPara($admin))
+            ->deleteJson('/api/v1/administradores-empresa/'.$perfilPropio->id)
+            ->assertForbidden();
     }
 }

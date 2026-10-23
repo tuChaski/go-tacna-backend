@@ -111,6 +111,10 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('posiciones', PosicionGpsController::class)
                 ->only(['index', 'show'])
                 ->parameters(['posiciones' => 'posicion']);
+
+            // Administradores de empresa (lectura con alcance por empresa)
+            Route::get('administradores-empresa', [AdministradorEmpresaPerfilController::class, 'index']);
+            Route::get('administradores-empresa/{administrador_empresa}', [AdministradorEmpresaPerfilController::class, 'show']);
         });
 
         /*
@@ -123,9 +127,14 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('usuarios', UsuarioController::class);
             Route::patch('usuarios/{usuario}/estado', [UsuarioController::class, 'estado']);
 
-            // Administradores de empresa
-            Route::apiResource('administradores-empresa', AdministradorEmpresaPerfilController::class)
-                ->parameters(['administradores-empresa' => 'administrador_empresa']);
+            // Administradores de empresa (escritura)
+            Route::post('administradores-empresa', [AdministradorEmpresaPerfilController::class, 'store']);
+            Route::match(
+                ['put', 'patch'],
+                'administradores-empresa/{administrador_empresa}',
+                [AdministradorEmpresaPerfilController::class, 'update']
+            );
+            Route::delete('administradores-empresa/{administrador_empresa}', [AdministradorEmpresaPerfilController::class, 'destroy']);
 
             // Planes: la lectura pública está declarada arriba.
             Route::post('planes', [PlanController::class, 'store']);

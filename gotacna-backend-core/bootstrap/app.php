@@ -30,6 +30,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PROTO
         );
 
+        $middleware->redirectGuestsTo(
+            fn (Request $request): string => $request->is('api/*')
+                ? '/api/v1/auth/login'
+                : '/login'
+        );
+
         $middleware->alias([
             'role' => CheckRole::class,
         ]);

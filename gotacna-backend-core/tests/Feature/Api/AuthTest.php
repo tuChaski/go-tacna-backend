@@ -76,6 +76,14 @@ class AuthTest extends TestCase
             ->assertJsonPath('data.usuario.correo', $usuario->correo);
     }
 
+    public function test_validacion_devuelve_mensajes_en_espanol(): void
+    {
+        $this->postJson('/api/v1/auth/login', [])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.correo.0', 'El campo correo es obligatorio.')
+            ->assertJsonPath('errors.password.0', 'El campo contraseña es obligatorio.');
+    }
+
     public function test_login_rechaza_credenciales_invalidas(): void
     {
         Usuario::factory()->create([
