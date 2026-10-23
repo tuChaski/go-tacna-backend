@@ -3,123 +3,117 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Resources\UsuarioResource;
+use App\Models\Usuario;
+use Illuminate\Http\JsonResponse;
 
 class AuthController extends Controller
 {
-    /**
-     * Registro público de nuevos usuarios (pasajeros).
-     */
-    public function register(Request $request)
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
+        $datos = $request->validated();
+
+        $usuario = Usuario::create([
+            'dni' => $datos['dni'],
+            'nombre' => $datos['nombre'],
+            'apellido' => $datos['apellido'],
+            'correo' => $datos['correo'],
+            'telefono' => $datos['telefono'],
+            'password_hash' => $datos['password'],
+            'rol' => 'pasajero',
+            'activo' => true,
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors'  => $validator->errors()
-            ], 422);
-        }
+        $token = auth('api')->login($usuario);
 
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
-            'role'     => 'pasajero', // Por defecto los autoregistrados son pasajeros
-            'activo'   => true,
-        ]);
-
-        $token = JWTAuth::fromUser($user);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Usuario registrado exitosamente',
-            'data'    => [
-                'user'  => $user,
-                'token' => $token,
-                'type'  => 'bearer',
-            ]
-        ], 201);
+        return $this->respuestaLogin($usuario, $token, 'Usuario registrado correctamente.', 201);
     }
 
-    /**
-     * Inicio de sesión multi-rol.
-     */
-    public function login(Request $request)
+    public function login(LoginRequest $request): JsonResponse
     {
-        $credentials = $request->only('email', 'password');
+        $datos = $request->validated();
 
-        if (! $token = auth('api')->attempt($credentials)) {
+        $token = auth('api')->attempt([
+            'correo' => $datos['correo'],
+            'password' => $datos['password'],
+        ]);
+
+        if (! $token) {
             return response()->json([
                 'success' => false,
-                'message' => 'Credenciales inválidas'
+                'message' => 'Credenciales inválidas.',
             ], 401);
         }
 
-        $user = auth('api')->user();
+        /** @var Usuario $usuario */
+        $usuario = auth('api')->user();
 
-        // Verificar si la cuenta está activa
-        if (! $user->activo) {
+        if (! $usuario->activo) {
             auth('api')->logout();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Cuenta desactivada. Contacte al administrador.'
+                'message' => 'La cuenta está desactivada. Contacta al administrador.',
             ], 403);
         }
 
-        return response()->json([
-            'success' => true,
-            'data'    => [
-                'user'  => $user,
-                'token' => $token,
-                'type'  => 'bearer',
-            ]
-        ]);
+        return $this->respuestaLogin($usuario, $token, 'Inicio de sesión correcto.');
     }
 
-    /**
-     * Obtener el perfil del usuario autenticado.
-     */
-    public function me()
+    public function me(): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'data'    => auth('api')->user()
+        /** @var Usuario $usuario */
+        $usuario = auth('api')->user();
+
+        $usuario->load([
+            'conductorPerfil.microActual.ruta',
+            'administradorEmpresaPerfiles.empresa',
+            'suscripciones.plan',
         ]);
+
+        return (new UsuarioResource($usuario))
+            ->additional(['success' => true])
+            ->response();
     }
 
-    /**
-     * Refrescar un token JWT por expirar.
-     */
-    public function refresh()
+    public function refresh(): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'data'    => [
-                'token' => auth('api')->refresh(),
-                'type'  => 'bearer',
-            ]
-        ]);
+        $token = auth('api')->refresh();
+
+        return $this->respuesta([
+            'token' => $token,
+            'tipo' => 'bearer',
+        ], 'Token renovado correctamente.');
     }
 
-    /**
-     * Cierre de sesión (Invalida el token JWT actual).
-     */
-    public function logout()
+    public function logout(): JsonResponse
     {
         auth('api')->logout();
 
+        return $this->respuesta(null, 'Sesión cerrada correctamente.');
+    }
+
+    private function respuestaLogin(
+        Usuario $usuario,
+        string $token,
+        string $message,
+        int $status = 200
+    ): JsonResponse {
+        $usuario->load([
+            'conductorPerfil.microActual.ruta',
+            'administradorEmpresaPerfiles.empresa',
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => 'Sesión cerrada exitosamente'
-        ]);
+            'message' => $message,
+            'data' => [
+                'usuario' => (new UsuarioResource($usuario))->resolve(),
+                'token' => $token,
+                'tipo' => 'bearer',
+            ],
+        ], $status);
     }
 }

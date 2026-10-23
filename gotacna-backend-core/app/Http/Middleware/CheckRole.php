@@ -9,16 +9,16 @@ use Symfony\Component\HttpFoundation\Response;
 class CheckRole
 {
     /**
-     * Handle an incoming request.
+     * Permite el acceso cuando el usuario autenticado tiene uno de los roles indicados.
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        $user = auth('api')->user();
+        $usuario = auth('api')->user();
 
-        if (! $user || ! in_array($user->role, $roles)) {
+        if (! $usuario || ! $usuario->activo || ! in_array($usuario->rol, $roles, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'No tiene permisos para acceder a este recurso.'
+                'message' => 'No tiene permisos para acceder a este recurso.',
             ], 403);
         }
 

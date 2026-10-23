@@ -2,134 +2,203 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
+use App\Models\AdministradorEmpresaPerfil;
+use App\Models\ConductorPerfil;
 use App\Models\Empresa;
-use App\Models\Ruta;
-use App\Models\Paradero;
 use App\Models\Micro;
-use App\Models\Conductor;
+use App\Models\Plan;
+use App\Models\PosicionGps;
+use App\Models\Ruta;
+use App\Models\Suscripcion;
+use App\Models\Usuario;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Crear Usuarios de prueba (Admin, Conductores, Pasajero)
-        $admin = User::create([
-            'name'     => 'Administrador Go-Tacna',
-            'email'    => 'admin@gotacna.pe',
-            'password' => Hash::make('admin123'),
-            'role'     => 'admin',
-            'activo'   => true,
-        ]);
-
-        $conductorUser1 = User::create([
-            'name'     => 'Juan Pérez (Conductor 101)',
-            'email'    => 'conductor1@gotacna.pe',
-            'password' => Hash::make('driver123'),
-            'role'     => 'conductor',
-            'activo'   => true,
-        ]);
-
-        $conductorUser2 = User::create([
-            'name'     => 'Carlos Mamani (Conductor 10B)',
-            'email'    => 'conductor2@gotacna.pe',
-            'password' => Hash::make('driver123'),
-            'role'     => 'conductor',
-            'activo'   => true,
-        ]);
-
-        $pasajero = User::create([
-            'name'     => 'Pasajero Tacneño',
-            'email'    => 'pasajero@gotacna.pe',
-            'password' => Hash::make('user123'),
-            'role'     => 'pasajero',
-            'activo'   => true,
-        ]);
-
-        // 2. Crear Empresas de Transporte
-        $empresa101 = Empresa::create([
-            'nombre' => 'Empresa de Transportes Ruta 101 S.A.',
+        $empresaTacna = Empresa::create([
+            'ruc' => '20123456789',
+            'razon_social' => 'Transportes Tacna S.A.C.',
+            'telefono' => '052-123456',
+            'direccion' => 'Av. Bolognesi 123, Tacna',
             'activo' => true,
         ]);
 
-        $empresa10B = Empresa::create([
-            'nombre' => 'Empresa de Transportes 10B Tacna',
+        $empresaSur = Empresa::create([
+            'ruc' => '20987654321',
+            'razon_social' => 'Rutas del Sur E.I.R.L.',
+            'telefono' => '052-654321',
+            'direccion' => 'Av. Leguía 456, Tacna',
             'activo' => true,
         ]);
 
-        // 3. Crear Rutas
-        $ruta101 = Ruta::create([
-            'empresa_id'  => $empresa101->id,
-            'nombre'      => 'Línea 101 (Gregorio Albarracín - Centro - Pocollay)',
-            'descripcion' => 'Recorrido desde Viñani pasa por Bolognesi hasta Pocollay',
-            'trazado'     => json_encode([
-                ['lat' => -18.0500, 'lng' => -70.2500],
-                ['lat' => -18.0139, 'lng' => -70.2511],
-                ['lat' => -18.0050, 'lng' => -70.2350],
-            ]),
+        $adminGeneral = Usuario::create([
+            'dni' => '70000001',
+            'nombre' => 'Administrador',
+            'apellido' => 'General',
+            'correo' => 'admin@gotacna.pe',
+            'telefono' => '999111222',
+            'password_hash' => 'admin123',
+            'rol' => 'admin_general',
+            'activo' => true,
         ]);
 
-        $ruta10B = Ruta::create([
-            'empresa_id'  => $empresa10B->id,
-            'nombre'      => 'Línea 10B (Cono Sur - UNJBG - Terminal)',
-            'descripcion' => 'Pasa por el campus universitario UNJBG y Terminal Terrestre',
-            'trazado'     => json_encode([
-                ['lat' => -18.0300, 'lng' => -70.2600],
-                ['lat' => -18.0250, 'lng' => -70.2480],
-            ]),
+        $adminEmpresa = Usuario::create([
+            'dni' => '70000002',
+            'nombre' => 'Administrador',
+            'apellido' => 'Empresa',
+            'correo' => 'admin.empresa@gotacna.pe',
+            'telefono' => '999222333',
+            'password_hash' => 'empresa123',
+            'rol' => 'admin_empresa',
+            'activo' => true,
         ]);
 
-        // 4. Crear Paraderos Clave de Tacna
-        $paraderoUnjbg = Paradero::create([
-            'nombre'   => 'Paradero UNJBG (Puerta Principal)',
-            'latitud'  => -18.02500000,
-            'longitud' => -70.24800000,
+        AdministradorEmpresaPerfil::create([
+            'usuario_id' => $adminEmpresa->id,
+            'empresa_id' => $empresaTacna->id,
+            'cargo' => 'Gerente de operaciones',
         ]);
 
-        $paraderoCentro = Paradero::create([
-            'nombre'   => 'Paradero Av. Bolognesi (Plaza Zela)',
-            'latitud'  => -18.01390000,
-            'longitud' => -70.25110000,
+        $conductor1User = Usuario::create([
+            'dni' => '70000003',
+            'nombre' => 'Juan',
+            'apellido' => 'Pérez',
+            'correo' => 'conductor1@gotacna.pe',
+            'telefono' => '999333444',
+            'password_hash' => 'conductor123',
+            'rol' => 'conductor',
+            'activo' => true,
         ]);
 
-        $paraderoTerminal = Paradero::create([
-            'nombre'   => 'Paradero Terminal Terrestre',
-            'latitud'  => -18.00800000,
-            'longitud' => -70.25500000,
+        $conductor1 = ConductorPerfil::create([
+            'usuario_id' => $conductor1User->id,
+            'empresa_id' => $empresaTacna->id,
+            'licencia_conducir' => 'Q12345678',
+            'estado_operativo' => 'disponible',
         ]);
 
-        // Vinculación de Paraderos a la Ruta 101 con su Orden
-        $ruta101->paraderos()->attach([
-            $paraderoUnjbg->id    => ['orden' => 1],
-            $paraderoCentro->id   => ['orden' => 2],
-            $paraderoTerminal->id => ['orden' => 3],
+        $conductor2User = Usuario::create([
+            'dni' => '70000004',
+            'nombre' => 'Carlos',
+            'apellido' => 'Mamani',
+            'correo' => 'conductor2@gotacna.pe',
+            'telefono' => '999444555',
+            'password_hash' => 'conductor123',
+            'rol' => 'conductor',
+            'activo' => true,
         ]);
 
-        // 5. Crear Micros y Asignación de Conductores
+        $conductor2 = ConductorPerfil::create([
+            'usuario_id' => $conductor2User->id,
+            'empresa_id' => $empresaSur->id,
+            'licencia_conducir' => 'Q87654321',
+            'estado_operativo' => 'disponible',
+        ]);
+
+        $pasajero = Usuario::create([
+            'dni' => '70000005',
+            'nombre' => 'María',
+            'apellido' => 'Quispe',
+            'correo' => 'pasajero@gotacna.pe',
+            'telefono' => '999555666',
+            'password_hash' => 'pasajero123',
+            'rol' => 'pasajero',
+            'activo' => true,
+        ]);
+
+        $planBasico = Plan::create([
+            'nombre_plan' => 'Plan Básico',
+            'costo' => 5.00,
+            'activo' => true,
+        ]);
+
+        Plan::create([
+            'nombre_plan' => 'Plan Estudiante',
+            'costo' => 3.50,
+            'activo' => true,
+        ]);
+
+        Plan::create([
+            'nombre_plan' => 'Plan Mensual',
+            'costo' => 25.00,
+            'activo' => true,
+        ]);
+
+        $ruta1 = Ruta::create([
+            'empresa_id' => $empresaTacna->id,
+            'nombre_ruta' => 'Ruta Centro - Mercado',
+            'activo' => true,
+        ]);
+
+        Ruta::guardarTrazado($ruta1->id, [
+            'type' => 'LineString',
+            'coordinates' => [
+                [-70.246500, -18.014000],
+                [-70.241000, -18.019500],
+                [-70.235500, -18.025000],
+                [-70.230000, -18.030500],
+            ],
+        ]);
+
+        $ruta2 = Ruta::create([
+            'empresa_id' => $empresaSur->id,
+            'nombre_ruta' => 'Ruta Terminal - Ciudad Nueva',
+            'activo' => true,
+        ]);
+
+        Ruta::guardarTrazado($ruta2->id, [
+            'type' => 'LineString',
+            'coordinates' => [
+                [-70.252000, -18.010000],
+                [-70.247000, -18.015000],
+                [-70.242000, -18.020000],
+            ],
+        ]);
+
         $micro1 = Micro::create([
-            'empresa_id' => $empresa101->id,
-            'placa'      => 'Z1A-780',
-            'activo'     => true,
+            'empresa_id' => $empresaTacna->id,
+            'ruta_id' => $ruta1->id,
+            'conductor_actual_id' => $conductor1->id,
+            'placa' => 'V1A-101',
+            'capacidad_pasajeros' => 22,
+            'estado' => 'disponible',
         ]);
 
-        $micro2 = Micro::create([
-            'empresa_id' => $empresa10B->id,
-            'placa'      => 'Z2B-450',
-            'activo'     => true,
+        Micro::create([
+            'empresa_id' => $empresaSur->id,
+            'ruta_id' => $ruta2->id,
+            'conductor_actual_id' => $conductor2->id,
+            'placa' => 'V2B-202',
+            'capacidad_pasajeros' => 20,
+            'estado' => 'disponible',
         ]);
 
-        Conductor::create([
-            'usuario_id' => $conductorUser1->id,
-            'micro_id'   => $micro1->id,
-            'ruta_id'    => $ruta101->id,
+        PosicionGps::create([
+            'micro_id' => $micro1->id,
+            'latitud' => -18.014000,
+            'longitud' => -70.246500,
+            'velocidad' => 0,
+            'fecha_hora' => now()->subMinutes(5),
         ]);
 
-        Conductor::create([
-            'usuario_id' => $conductorUser2->id,
-            'micro_id'   => $micro2->id,
-            'ruta_id'    => $ruta10B->id,
+        PosicionGps::create([
+            'micro_id' => $micro1->id,
+            'latitud' => -18.019500,
+            'longitud' => -70.241000,
+            'velocidad' => 28.5,
+            'fecha_hora' => now(),
         ]);
+
+        Suscripcion::create([
+            'usuario_id' => $pasajero->id,
+            'plan_id' => $planBasico->id,
+            'fecha_inicio' => now()->toDateString(),
+            'fecha_vencimiento' => now()->addDays(30)->toDateString(),
+            'estado' => 'activa',
+        ]);
+
+        $this->command?->info('Datos de prueba creados. Admin: admin@gotacna.pe / admin123');
     }
 }

@@ -4,34 +4,51 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Micro extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['empresa_id', 'placa', 'activo'];
+    protected $table = 'micros';
 
-    protected $casts = [
-        'activo' => 'boolean',
+    protected $fillable = [
+        'empresa_id',
+        'ruta_id',
+        'conductor_actual_id',
+        'placa',
+        'capacidad_pasajeros',
+        'estado',
     ];
 
-    public function empresa()
+    protected $casts = [
+        'capacidad_pasajeros' => 'integer',
+    ];
+
+    public function empresa(): BelongsTo
     {
-        return $this->belongsTo(Empresa::class);
+        return $this->belongsTo(Empresa::class, 'empresa_id');
     }
 
-    public function conductor()
+    public function ruta(): BelongsTo
     {
-        return $this->hasOne(Conductor::class);
+        return $this->belongsTo(Ruta::class, 'ruta_id');
     }
 
-    public function posiciones()
+    public function conductorActual(): BelongsTo
     {
-        return $this->hasMany(Posicion::class);
+        return $this->belongsTo(ConductorPerfil::class, 'conductor_actual_id');
     }
 
-    public function ultimaPosicion()
+    public function posiciones(): HasMany
     {
-        return $this->hasOne(Posicion::class)->latestOfMany('recorded_at');
+        return $this->hasMany(PosicionGps::class, 'micro_id');
+    }
+
+    public function ultimaPosicion(): HasOne
+    {
+        return $this->hasOne(PosicionGps::class, 'micro_id')->latestOfMany('fecha_hora');
     }
 }
