@@ -74,6 +74,14 @@ test('PRB-027 y PRB-040 (T099/T076): authMiddleware valida Bearer token, rol con
   authMiddleware(reqValido, createRes(), () => { llamoNext = true; });
   assert.equal(llamoNext, true);
   assert.deepEqual(reqValido.conductor, { microId: 'micro-24', rutaId: 10 });
+
+  // 4. Token emitido por Laravel (claims en snake_case: rol, micro_id, ruta_id) -> next()
+  const tokenLaravel = jwt.sign({ sub: '3', rol: 'conductor', micro_id: 1, ruta_id: 1 }, process.env.JWT_SECRET);
+  const reqLaravel = { headers: { authorization: `Bearer ${tokenLaravel}` } };
+  let llamoNextLaravel = false;
+  authMiddleware(reqLaravel, createRes(), () => { llamoNextLaravel = true; });
+  assert.equal(llamoNextLaravel, true);
+  assert.deepEqual(reqLaravel.conductor, { microId: 1, rutaId: 1 });
 });
 
 test('PRB-034 y PRB-038 (T071): gpsRouter valida coordenadas/velocidad y emite micro:position y micro:stopped', () => {

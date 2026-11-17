@@ -12,14 +12,17 @@ export function authMiddleware(req, res, next) {
 
   try {
     const payload = jwt.verify(token, env.jwtSecret);
+    const role = payload.rol ?? payload.role;
+    const microId = payload.micro_id ?? payload.microId;
+    const rutaId = payload.ruta_id ?? payload.rutaId;
 
-    if (!payload.role || payload.role !== 'conductor' || !payload.microId || !payload.rutaId) {
+    if (!role || role !== 'conductor' || !microId || !rutaId) {
       return res.status(403).json({ error: 'Token de autenticación inválido' });
     }
 
     req.conductor = {
-      microId: payload.microId,
-      rutaId: payload.rutaId
+      microId,
+      rutaId
     };
     next();
   } catch (e) {
