@@ -1,5 +1,6 @@
 import { getRuta } from '../services/fleetState.js';
 import { calculateETA } from '../services/eta.js';
+import { toMicroDto } from '../services/microDto.js';
 
 export function passengerHandler(socket, io) {
   socket.on('route:join', (rutaId) => {
@@ -8,7 +9,7 @@ export function passengerHandler(socket, io) {
       return;
     }
     socket.join(`ruta:${rutaId}`);
-    const micros = getRuta(rutaId);
+    const micros = getRuta(rutaId).map(toMicroDto);
     socket.emit('route:joined', { rutaId, micros });
   });
 
