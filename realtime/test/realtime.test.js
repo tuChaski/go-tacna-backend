@@ -150,20 +150,30 @@ test('PRB-035 (T071): passengerHandler gestiona route:join, route:leave y eta:re
   assert.equal(emitidosAlCliente[0].evento, 'error');
 
   // 2. route:join con rutaId numerico une a la sala y emite route:joined
-  updatePosition('micro-p1', { lat: -18.0146, lng: -70.2536, speed: 6, rutaId: 30 });
+  updatePosition(31, { lat: -18.0146, lng: -70.2536, speed: 6, rutaId: 30 });
   listeners['route:join'](30);
   assert.ok(salasUnidas.includes('ruta:30'));
   assert.equal(emitidosAlCliente[1].evento, 'route:joined');
   assert.equal(emitidosAlCliente[1].payload.rutaId, 30);
+  assert.deepEqual(emitidosAlCliente[1].payload.micros, [{
+    microId: 31, rutaId: 30, lat: -18.0146, lng: -70.2536,
+    speed: 6, status: 'moviendo', lastSeen: getMicro(31).lastSeen
+  }]);
+  listeners['route:join'](-1);
+  assert.equal(emitidosAlCliente.at(-1).evento, 'error');
 
   // 3. eta:request con callback devuelve el calculo de ETA
   let respuestaCallback = null;
-  listeners['eta:request']({ microId: 'micro-p1', lat: -18.0065, lng: -70.2462 }, (err, eta) => {
+  listeners['eta:request']({ microId: 31, lat: -18.0065, lng: -70.2462 }, (err, eta) => {
     respuestaCallback = { err, eta };
   });
   assert.equal(respuestaCallback.err, null);
-  assert.equal(respuestaCallback.eta.microId, 'micro-p1');
+  assert.equal(respuestaCallback.eta.microId, 31);
   assert.equal(respuestaCallback.eta.estimated, true);
+  listeners['eta:request'](undefined, (err) => { respuestaCallback = { err }; });
+  assert.match(respuestaCallback.err.error, /Parámetros inválidos/);
+  listeners['eta:request']({ microId: 31, lat: 91, lng: -70.2462 }, (err) => { respuestaCallback = { err }; });
+  assert.match(respuestaCallback.err.error, /Parámetros inválidos/);
 
   // 4. route:leave abandona la sala
   listeners['route:leave'](30);

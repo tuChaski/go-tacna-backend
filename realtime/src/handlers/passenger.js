@@ -4,7 +4,7 @@ import { toMicroDto } from '../services/microDto.js';
 
 export function passengerHandler(socket, io) {
   socket.on('route:join', (rutaId) => {
-    if (!rutaId || typeof rutaId !== 'number') {
+    if (!Number.isSafeInteger(rutaId) || rutaId <= 0) {
       socket.emit('error', { message: 'rutaId inválido' });
       return;
     }
@@ -14,12 +14,15 @@ export function passengerHandler(socket, io) {
   });
 
   socket.on('route:leave', (rutaId) => {
-    if (!rutaId || typeof rutaId !== 'number') return;
+    if (!Number.isSafeInteger(rutaId) || rutaId <= 0) return;
     socket.leave(`ruta:${rutaId}`);
   });
 
-  socket.on('eta:request', ({ microId, lat, lng }, callback) => {
-    if (!microId || typeof lat !== 'number' || typeof lng !== 'number') {
+  socket.on('eta:request', (datos, callback) => {
+    const { microId, lat, lng } = datos && typeof datos === 'object' ? datos : {};
+    if (!Number.isSafeInteger(microId) || microId <= 0
+      || !Number.isFinite(lat) || lat < -90 || lat > 90
+      || !Number.isFinite(lng) || lng < -180 || lng > 180) {
       const err = { error: 'Parámetros inválidos: microId, lat, lng requeridos' };
       if (callback) callback(err);
       else socket.emit('eta:response', err);
