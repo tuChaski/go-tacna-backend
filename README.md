@@ -1,267 +1,52 @@
-# go-tacna — Backend
+# Go Tacna — Backend
 
-Servidor del proyecto: **API REST** (`api/`) y **servidor de tiempo real** (`realtime/`).
+Este repositorio contiene tres servicios:
 
-> **Pregunta que responde el sistema:** "¿Dónde está mi micro y cuánto falta para que llegue?"
+| Carpeta | Función | Puerto dentro de Docker |
+| --- | --- | ---: |
+| `gotacna-backend-core/` | API Laravel, PostgreSQL/PostGIS, rutas, micros y usuarios | 8000 |
+| `gotacna-api-gateway/` | Reenvía `/api/*` al core | 8000 |
+| `realtime/` | Socket.IO, posiciones en vivo y ETA | 3001 |
 
----
+## Arranque recomendado con Docker
 
-## ⚠️ Estado actual
-
-**Este repositorio está vacío.** Todo el código de backend vive hoy en el monorepo `go-tacna-frontend/`:
-
-| Componente | Ruta actual | Estado |
-|---|---|---|
-| `api/` | `go-tacna-frontend/backend/` | esqueleto de Laravel 13, sin lógica de negocio |
-| `realtime/` | `go-tacna-frontend/realtime/` | **funcional**, con pruebas |
-
-Este README describe el **diseño objetivo** de cada componente y, en `realtime/`, también el comportamiento exacto que ya está implementado. Al migrar el código, este README pasa a describir la estructura real.
-
----
-
-## 1. Qué vive en este repositorio
-
-```
-api/                     API REST — datos, cuentas y reglas de negocio
-  app/
-    Http/Controllers/    Endpoints
-    Models/              Empresa, Ruta, Micro, Conductor, Pasajero, Posicion
-  database/migrations/   Esquema de PostgreSQL + PostGIS
-  routes/api.php         Rutas de la API (prefijo /api)
-  tests/                 PHPUnit
-
-realtime/                Servidor de posiciones GPS en vivo
-  src/
-    config/env.js        Lectura y validación de variables de entorno
-    middleware/auth.js   Verificación del JWT del conductor
-    middleware/rateLimit.js  Límite de peticiones por micro
-    handlers/gps.js      Endpoints de posición y fin de recorrido
-    handlers/passenger.js Eventos Socket.io del pasajero
-    services/fleetState.js  Memoria de las unidades en movimiento
-    services/eta.js      Distancia haversine y cálculo del ETA
-  tests/                 Pruebas con node:test
-```
-
----
-
-## 2. Por qué el tiempo real está separado de la API
-
-Laravel atiende **cada petición desde cero**: recibe, procesa y responde. El tiempo real necesita algo distinto:
-
-- **recordar** la última posición de cada micro mientras la conexión está abierta,
-- **mantener** conexiones vivas con todos los pasajeros,
-- **empujar** posiciones nuevas sin que el cliente pregunte.
-
-Meter eso en Laravel significaría estado en sesión y recargas constantes. Por eso `realtime/` es un proceso Node.js aparte, y ambos comparten **el mismo `JWT_SECRET`** para validar al conductor con el mismo token.
-
----
-
-## 3. `api/` — API REST (Laravel)
-
-### Stack
-
-| Tecnología | Versión | Propósito |
-|---|---|---|
-| **PHP** | `^8.3` | Lenguaje del servidor |
-| **Laravel** | `^13.17` | Framework: login, CRUD, validación |
-| **PostgreSQL** | 16 | Base de datos |
-| **PostGIS** | 3.4 | Guardar el trazado de rutas y calcular distancias |
-| **php-open-source-saver/jwt-auth** | — | Login: entrega un token que prueba quién eres |
-| **Laravel Magellan** | — | Usar datos de PostGIS desde Laravel |
-| **L5-Swagger** | — | Documentación navegable de la API |
-| **PHPUnit** | `^12.5` | Pruebas automáticas |
-| **Pint** | `^1.27` | Estilo de código |
-| **Pail** | `^1.2.5` | Logs en tiempo real |
-
-### Puesta en marcha
+El archivo Compose está en el repositorio hermano `../rutas-en-tiempo-real-infraestructura`. Desde esa carpeta:
 
 ```bash
-composer install
-cp .env.example .env
-php artisan key:generate
-
-# Conexión a PostgreSQL + PostGIS
-# En .env:
-#   DB_CONNECTION=pgsql
-#   DB_HOST=127.0.0.1
-#   DB_PORT=5432
-#   DB_DATABASE=gotacna
-#   DB_USERNAME=gotacna
-#   DB_PASSWORD=<tu clave>
-
-php artisan migrate
-php artisan serve          # http://localhost:8000
-php artisan test
+sudo systemctl start docker        # Manjaro, si el daemon está apagado
+cd ../rutas-en-tiempo-real-infraestructura
+cp .env.example .env               # solo la primera vez; conserva un .env existente
+sudo docker compose up -d --build --wait
+sudo docker compose ps
 ```
 
-Levantar solo la base de datos, desde el monorepo:
+Docker instala las dependencias PHP y Node dentro de los contenedores, inicia PostgreSQL con PostGIS, ejecuta las migraciones del core y, si `SEED_DEMO_DATA=true`, carga datos de demostración. No necesitas ejecutar `composer install`, `php artisan serve` ni `npm start` en el host para este modo. Los `.env` locales de cada servicio no reemplazan el `.env` de infraestructura: Compose entrega su propia configuración a los contenedores.
+
+Antes del primer arranque, sigue la [sección de claves del `.env` de infraestructura](../rutas-en-tiempo-real-infraestructura/README.md#configurar-las-claves-del-env). Allí se generan por separado `APP_KEY` y `GATEWAY_APP_KEY`, y se define un único `JWT_SECRET` compartido entre core y Socket.IO. Para Docker no hay que ejecutar `php artisan jwt:secret` en el gateway ni copiar los `.env.example` de estos servicios.
+
+El punto de entrada es `http://localhost:8001`:
+
+- `http://localhost:8001/api/v1/rutas` consulta la API.
+- `http://localhost:8001/socket.io/?EIO=4&transport=polling` comprueba Socket.IO; la respuesta empieza por `0{`.
+
+El puerto 8000 del core y el 3001 de Node quedan dentro de la red Docker. Por eso `/socket.io/` se consulta en el puerto **8001** cuando usas Compose. Para acceder desde un teléfono, sigue la sección de red del [README de infraestructura](../rutas-en-tiempo-real-infraestructura/README.md).
+
+## Desarrollo y diagnóstico
+
+Los cambios en este repositorio se montan dentro de los contenedores. El core y el gateway ejecutan Composer al iniciar; `realtime` ejecuta `npm ci`. Tras cambiar dependencias o configuración, reconstruye con `sudo docker compose up -d --build --wait` desde infraestructura.
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d db
+sudo docker compose logs --tail=100 backend gateway websocket
+sudo docker compose exec backend php artisan migrate:status
+sudo docker compose down
 ```
 
-### Recursos que administra
+Ejecuta estos comandos desde `rutas-en-tiempo-real-infraestructura`. `docker compose down` detiene los contenedores y conserva la base de datos en su volumen. Evita `down -v` si quieres conservar los datos.
 
-El administrador da de alta y mantiene:
+Para trabajar **sin Docker**, prepara PostgreSQL 16 con PostGIS, PHP con `sodium` y `pdo_pgsql`, Composer y Node. Configura por separado los `.env` de `gotacna-backend-core`, `gotacna-api-gateway` y `realtime`; el core y realtime deben compartir `JWT_SECRET`. En ese modo inicia core en `:8000`, gateway en `:8001` y Node en `:3001`. El gateway Laravel por sí solo no sirve `/socket.io/`; el proxy de Compose sí lo hace.
 
-| Recurso | Para qué |
-|---|---|
-| **Empresa** | Empresa de transporte (solo Tacna por ahora) |
-| **Ruta** | Trayecto con su trazado geospatial (PostGIS) |
-| **Parada** | Punto de espera de una ruta |
-| **Micro** | Unidad que reporta su posición |
-| **Conductor** | Persona autorizada a transmitir GPS |
-| **Pasajero** | Persona que consulta posiciones |
+## Estado funcional
 
-### Claims del token
+La API gestiona rutas con **un trazado** `LineString` por ruta. El esquema actual no contiene paraderos ni trazados separados de ida y vuelta. El servicio `realtime` conserva posiciones y muestras de velocidad en memoria; `route:joined` y `micro:position` publican solo los campos del contrato `Micro`. El ETA es aproximado y no considera tráfico ni recorrido por calles.
 
-El token JWT que entrega el login debe incluir:
-
-```json
-{
-  "role": "conductor",
-  "micro_id": 12,
-  "ruta_id": 3,
-  "exp": 1767225600
-}
-```
-
-`realtime/` **rechaza** el token si falta cualquiera de los tres primeros campos (`realtime/src/middleware/auth.js:11`).
-
----
-
-## 4. `realtime/` — Tiempo real (Node.js)
-
-### Stack
-
-| Tecnología | Versión | Propósito |
-|---|---|---|
-| **Node.js** | `>=24` | Entorno del servidor |
-| **Express** | `^5.1.0` | Recibe el GPS del conductor |
-| **Socket.io** | `^4.8.1` | Conexiones vivas con los pasajeros |
-| **jsonwebtoken** | `^9.0.2` | Verifica que quien envía GPS es un conductor autorizado |
-| **express-rate-limit** | `^8.1.0` | Evita que alguien sature el servidor |
-| **cors** | `^2.8.5` | Permite el origen de la web |
-
-### Comandos
-
-```bash
-cd realtime
-cp .env.example .env      # define JWT_SECRET (mismo valor que api/.env)
-npm ci
-npm start                 # node src/server.js
-npm run dev               # node --watch --env-file=.env
-npm test                  # node --test
-```
-
-### Variables de entorno
-
-| Variable | Por defecto | Para qué |
-|---|---|---|
-| `PORT` | `3001` | Puerto de escucha |
-| `JWT_SECRET` | — | **obligatoria**: el proceso lanza error si falta |
-| `CORS_ORIGIN` | `*` | Origen permitido del navegador |
-| `OFFLINE_AFTER_MS` | `120000` | Tras 2 min sin señal, el micro pasa a `sin_conexion` |
-
-### API HTTP
-
-| Método | Ruta | Auth | Respuesta |
-|---|---|---|---|
-| `GET` | `/health` | no | `{ "status": "ok" }` |
-| `POST` | `/tracking/position` | conductor | `202 { "ok": true }` |
-| `POST` | `/tracking/stop` | conductor | `200 { "ok": true }` |
-
-`POST /tracking/position` acepta:
-
-```json
-{ "lat": -18.0146, "lng": -70.2536, "speed": 8.4 }
-```
-
-Valida que las coordenadas estén dentro de rango y la velocidad no sea negativa; si no, devuelve `400 "Datos GPS inválidos"`.
-
-Límite: **60 peticiones por minuto por micro** (`middleware/rateLimit.js`). El conductor envía cada 3-5 s, así que queda margen.
-
-### Eventos WebSocket
-
-| Evento | Dirección | Datos |
-|---|---|---|
-| `route:join` | cliente → servidor | `rutaId` → responde con las unidades de esa ruta |
-| `route:leave` | cliente → servidor | `rutaId` |
-| `eta:request` | cliente → servidor | `{ microId, lat, lng }` |
-| `micro:position` | servidor → cliente | `{ microId, rutaId, lat, lng, speed, status, lastSeen }` |
-| `micro:offline` | servidor → cliente | `{ microId, lastSeen }` |
-| `micro:stopped` | servidor → cliente | `{ microId }` |
-
-Los pasajeros se agrupan en **salas** (`ruta:{rutaId}`): cada uno solo recibe posiciones de su ruta.
-
-`services/fleetState.js:2` conserva las **60 últimas muestras de velocidad** de cada micro en memoria, y `server.js:27` revisa cada 15 s cuáles llevan demasiado tiempo sin señal para marcarlos `sin_conexion`.
-
-> El estado vive **solo en memoria**. Si el proceso se reinicia, se pierde el mapa de posiciones. Es aceptable en el MVP porque las posiciones no se consultan como histórico.
-
-### Cálculo del ETA
-
-`services/eta.js:19`:
-
-```js
-segundos = distancia_metros / max(velocidad_promedio, 2)
-```
-
-- **haversine** para la distancia en línea recta entre el pasajero y el micro.
-- **velocidad promedio** de las últimas 60 muestras, no la instantánea: evita que un micro detenido genere tiempos absurdos.
-- **mínimo de `2 m/s`** como red de seguridad.
-- Siempre se marca `estimated: true`. **No considera tráfico ni recorridos.**
-
----
-
-## 5. Contrato con los demás repositorios
-
-Este repo **no** define los contratos; los consume.
-
-- **Contrato de la API** → `go-tacna-docs/docs/openapi.yaml`
-- **Eventos WebSocket y claims del JWT** → `go-tacna-docs`
-- **Proxy que expone `/api/` y `/socket.io/`** → `go-tacna-infraestructura`
-
-Si un contrato cambia, se cambia primero en `docs/` y después se ajusta aquí.
-
----
-
-## 6. Problemas conocidos
-
-1. **`api/` es el esqueleto de Laravel**: solo el modelo `User`, tres migraciones de fábrica y `routes/web.php`. No hay `routes/api.php`, ni controladores, ni los paquetes de JWT, Magellan o Swagger.
-2. **Falta el `Dockerfile` de `api/`**, así que el servicio `backend` no se puede construir.
-3. **`api/.env.example` sigue con SQLite**; hay que cambiarlo a `pgsql` para usar PostGIS.
-4. **La documentación OpenAPI es un borrador**: solo declara `/health`, `/routes` y `/buses/{busId}/location`.
-
----
-
-## 7. Seguridad
-
-- **`JWT_SECRET` idéntico** en `api/` y `realtime/`. Se configura como secreto en CI, nunca en el código.
-- **Nunca se suben archivos `.env`.** Cada componente incluye su `.env.example`.
-- Solo los conductores con `role`, `micro_id` y `ruta_id` pueden transmitir GPS.
-- El límite por micro evita que un celular mal configurado inunde el servidor.
-
----
-
-## 8. Equipo
-
-| Integrante | Rol prioritario |
-|---|---|
-| Royfrankly Navarro | Coordinación general, Backend y DevOps |
-| David Montador | Arquitectura de software y módulo GPS en tiempo real |
-| Alex Huaracha | Diseño UI/UX y desarrollo Frontend/Móvil |
-| Edison Catari | Calidad (QA), pruebas y automatización |
-
----
-
-## 9. Enlaces
-
-| Repositorio | Propósito |
-|---|---|
-| `go-tacna-backend` | Este repositorio. API y tiempo real. |
-| `go-tacna-frontend` | Web pública y panel de administración. |
-| `go-tacna-movil` | App Android (Pasajero y Modo Conductor). |
-| `go-tacna-infraestructura` | Docker, k3s, Traefik y despliegue. |
-| `go-tacna-docs` | Informe, requisitos, contratos y cronograma. |
-
-Tablero de tareas: [Planificación go-tacna](https://github.com/orgs/go-tacna/projects/1)
+Contratos: [documentación del proyecto](../rutas-en-tiempo-real-docs/contratos/).
