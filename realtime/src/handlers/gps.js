@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { updatePosition, markStopped, getMicro } from '../services/fleetState.js';
+import { toMicroDto } from '../services/microDto.js';
 
 const router = Router();
 
@@ -23,15 +24,7 @@ router.post('/position', (req, res) => {
   updatePosition(microId, { lat, lng, speed, rutaId });
 
   const micro = getMicro(microId);
-  req.io.to(`ruta:${rutaId}`).emit('micro:position', {
-    microId,
-    rutaId,
-    lat: micro.lat,
-    lng: micro.lng,
-    speed: micro.speed,
-    status: micro.status,
-    lastSeen: micro.lastSeen
-  });
+  req.io.to(`ruta:${rutaId}`).emit('micro:position', toMicroDto(micro));
 
   res.status(202).json({ ok: true });
 });
