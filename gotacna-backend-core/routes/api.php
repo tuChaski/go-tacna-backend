@@ -71,6 +71,7 @@ Route::prefix('v1')->group(function () {
         */
         Route::middleware('role:conductor')->group(function () {
             Route::get('conductor/perfil', [ConductorPerfilController::class, 'perfil']);
+            Route::post('conductor/iniciar', [ConductorPosicionController::class, 'iniciar']);
             Route::post('conductor/posicion', [ConductorPosicionController::class, 'store']);
             Route::post('conductor/finalizar', [ConductorPosicionController::class, 'finalizar']);
 

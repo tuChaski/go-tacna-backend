@@ -8,11 +8,39 @@ use App\Http\Resources\PosicionGpsResource;
 use App\Models\ConductorPerfil;
 use App\Models\PosicionGps;
 use App\Models\Usuario;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class PosicionController extends Controller
 {
+    public function iniciar(): JsonResponse
+    {
+        /** @var Usuario $usuario */
+        $usuario = auth('api')->user();
+        $conductor = ConductorPerfil::query()->with('microActual.ruta')
+            ->where('usuario_id', $usuario->id)->first();
+
+        if (! $conductor || ! $conductor->microActual || ! $conductor->microActual->ruta?->activo) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Necesitas un micro asignado a una ruta activa para iniciar el recorrido.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($conductor) {
+            $conductor->microActual->update(['estado' => 'en_recorrido']);
+            $conductor->update(['estado_operativo' => 'en_recorrido']);
+        });
+
+        return $this->respuesta([
+            'micro_id' => $conductor->microActual->id,
+            'estado_operativo' => 'en_recorrido',
+        ], 'Recorrido iniciado.');
+    }
+
     public function store(ReportarPosicionRequest $request): JsonResponse
     {
         /** @var Usuario $usuario */
@@ -39,22 +67,47 @@ class PosicionController extends Controller
             ], 422);
         }
 
+        if ($micro->estado !== 'en_recorrido' || $conductor->estado_operativo !== 'en_recorrido') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Inicia el recorrido antes de enviar posiciones GPS.',
+            ], 409);
+        }
+
         $datos = $request->validated();
 
-        $posicion = DB::transaction(function () use ($datos, $micro, $conductor) {
-            $posicion = PosicionGps::create([
-                'micro_id' => $micro->id,
-                'latitud' => $datos['latitud'],
-                'longitud' => $datos['longitud'],
-                'velocidad' => $datos['velocidad'] ?? 0,
-                'fecha_hora' => $datos['fecha_hora'] ?? now(),
-            ]);
+        try {
+            $posicion = DB::transaction(function () use ($datos, $micro, $usuario) {
+                $posicion = PosicionGps::create([
+                    'micro_id' => $micro->id,
+                    'latitud' => $datos['latitud'],
+                    'longitud' => $datos['longitud'],
+                    'velocidad' => $datos['velocidad'] ?? 0,
+                    'fecha_hora' => $datos['fecha_hora'] ?? now(),
+                ]);
 
-            $micro->update(['estado' => 'en_recorrido']);
-            $conductor->update(['estado_operativo' => 'en_recorrido']);
+                $token = JWTAuth::fromUser($usuario->fresh());
+                $respuesta = Http::timeout(3)->withToken($token)->post(
+                    rtrim(config('services.realtime.url'), '/').'/tracking/position',
+                    [
+                        'lat' => (float) $datos['latitud'],
+                        'lng' => (float) $datos['longitud'],
+                        'speed' => (float) ($datos['velocidad'] ?? 0),
+                    ]
+                );
 
-            return $posicion;
-        });
+                if (! $respuesta->successful()) {
+                    throw new \RuntimeException('El servicio de tiempo real rechazó la posición.');
+                }
+
+                return $posicion;
+            });
+        } catch (ConnectionException|\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo actualizar la posición en tiempo real. Intenta nuevamente.',
+            ], 503);
+        }
 
         $posicion->load('micro.ruta');
 
