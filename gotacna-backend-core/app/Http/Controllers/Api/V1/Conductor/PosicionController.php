@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Conductor\ReportarPosicionRequest;
 use App\Http\Resources\PosicionGpsResource;
 use App\Models\ConductorPerfil;
+use App\Models\Micro;
 use App\Models\PosicionGps;
 use App\Models\Usuario;
 use Illuminate\Http\Client\ConnectionException;
@@ -30,10 +31,15 @@ class PosicionController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($conductor) {
-            $conductor->microActual->update(['estado' => 'en_recorrido']);
-            $conductor->update(['estado_operativo' => 'en_recorrido']);
-        });
+        try {
+            DB::transaction(function () use ($conductor, $usuario) {
+                $conductor->microActual->update(['estado' => 'en_recorrido']);
+                $conductor->update(['estado_operativo' => 'en_recorrido']);
+                $this->sincronizarTiempoReal($usuario, 'start');
+            });
+        } catch (ConnectionException|\RuntimeException $e) {
+            return $this->tiempoRealNoDisponible();
+        }
 
         return $this->respuesta([
             'micro_id' => $conductor->microActual->id,
@@ -84,7 +90,13 @@ class PosicionController extends Controller
         }
 
         try {
-            $posicion = DB::transaction(function () use ($datos, $micro, $usuario) {
+            $posicion = DB::transaction(function () use ($datos, $micro, $conductor, $usuario) {
+                $microActual = Micro::query()->lockForUpdate()->findOrFail($micro->id);
+                if ($microActual->estado !== 'en_recorrido'
+                    || (int) $microActual->conductor_actual_id !== (int) $conductor->id) {
+                    throw new \DomainException('El recorrido ya no está activo.');
+                }
+
                 $posicion = PosicionGps::create([
                     'micro_id' => $micro->id,
                     'latitud' => $datos['latitud'],
@@ -93,27 +105,18 @@ class PosicionController extends Controller
                     'fecha_hora' => $datos['fecha_hora'] ?? now(),
                 ]);
 
-                $token = JWTAuth::fromUser($usuario->fresh());
-                $respuesta = Http::timeout(3)->withToken($token)->post(
-                    rtrim(config('services.realtime.url'), '/').'/tracking/position',
-                    [
-                        'lat' => (float) $datos['latitud'],
-                        'lng' => (float) $datos['longitud'],
-                        'speed' => (float) ($datos['velocidad'] ?? 0),
-                    ]
-                );
-
-                if (! $respuesta->successful()) {
-                    throw new \RuntimeException('El servicio de tiempo real rechazó la posición.');
-                }
+                $this->sincronizarTiempoReal($usuario, 'position', [
+                    'lat' => (float) $datos['latitud'],
+                    'lng' => (float) $datos['longitud'],
+                    'speed' => (float) ($datos['velocidad'] ?? 0),
+                ]);
 
                 return $posicion;
             });
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 409);
         } catch (ConnectionException|\RuntimeException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo actualizar la posición en tiempo real. Intenta nuevamente.',
-            ], 503);
+            return $this->tiempoRealNoDisponible();
         }
 
         $posicion->load('micro.ruta');
@@ -146,15 +149,50 @@ class PosicionController extends Controller
         }
 
         if ($conductor->microActual) {
-            DB::transaction(function () use ($conductor) {
-                $conductor->microActual->update(['estado' => 'disponible']);
-                $conductor->update(['estado_operativo' => 'sin_conexion']);
-            });
+            try {
+                DB::transaction(function () use ($conductor, $usuario) {
+                    $micro = Micro::query()->lockForUpdate()->findOrFail($conductor->microActual->id);
+                    $this->sincronizarTiempoReal($usuario, 'stop');
+                    $micro->update(['estado' => 'disponible']);
+                    $conductor->update(['estado_operativo' => 'sin_conexion']);
+                });
+            } catch (ConnectionException|\RuntimeException $e) {
+                return $this->tiempoRealNoDisponible();
+            }
         }
 
         return $this->respuesta([
             'micro_id' => $conductor->microActual?->id,
             'estado_operativo' => 'sin_conexion',
         ], 'Recorrido finalizado. El micro quedó disponible.');
+    }
+
+    private function sincronizarTiempoReal(Usuario $usuario, string $accion, array $datos = []): void
+    {
+        $usuario = $usuario->fresh();
+        $micro = $usuario->conductorPerfil?->microActual;
+        $token = JWTAuth::claims([
+            'realtime_bridge' => true,
+            'realtime_action' => $accion,
+            'realtime_bridge_at' => now()->timestamp,
+            'empresa_id' => $micro?->empresa_id,
+        ])->fromUser($usuario);
+        JWTAuth::customClaims([]);
+        $respuesta = Http::timeout(3)->withToken($token)->post(
+            rtrim(config('services.realtime.url'), '/').'/tracking/'.$accion,
+            $datos
+        );
+
+        if (! $respuesta->successful()) {
+            throw new \RuntimeException('El servicio de tiempo real rechazó la solicitud.');
+        }
+    }
+
+    private function tiempoRealNoDisponible(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'No se pudo actualizar el recorrido en tiempo real. Intenta nuevamente.',
+        ], 503);
     }
 }

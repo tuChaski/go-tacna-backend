@@ -8,6 +8,16 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        // El contenedor usa caché en archivos; las pruebas requieren un limitador aislado.
+        $_ENV['CACHE_STORE'] = 'array';
+        $_SERVER['CACHE_STORE'] = 'array';
+        putenv('CACHE_STORE=array');
+
+        parent::setUp();
+    }
+
     protected function tokenPara(Usuario $usuario): string
     {
         return JWTAuth::fromUser($usuario);

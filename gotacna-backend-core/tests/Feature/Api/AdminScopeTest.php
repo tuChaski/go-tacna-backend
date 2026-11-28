@@ -43,6 +43,37 @@ class AdminScopeTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_acceso_a_flota_en_vivo_sigue_los_vinculos_actuales(): void
+    {
+        $propia = Empresa::factory()->create();
+        Empresa::factory()->create();
+        $admin = $this->adminEmpresaDe($propia);
+        $headers = $this->headersPara($admin);
+
+        $this->withHeaders($headers)->getJson('/api/v1/admin/tiempo-real/acceso')
+            ->assertOk()->assertExactJson(['data' => ['empresa_ids' => [$propia->id]]]);
+
+        $admin->administradorEmpresaPerfiles()->delete();
+        $this->withHeaders($headers)->getJson('/api/v1/admin/tiempo-real/acceso')->assertForbidden();
+
+        $admin->update(['activo' => false]);
+        app('tymon.jwt')->unsetToken();
+        app('auth')->forgetGuards();
+        $this->withHeaders($headers)->getJson('/api/v1/admin/tiempo-real/acceso')->assertForbidden();
+
+        $general = Usuario::factory()->adminGeneral()->create();
+        app('tymon.jwt')->unsetToken();
+        app('auth')->forgetGuards();
+        $this->withHeaders($this->headersPara($general))
+            ->getJson('/api/v1/admin/tiempo-real/acceso')
+            ->assertOk()->assertJsonCount(2, 'data.empresa_ids');
+
+        $propia->update(['activo' => false]);
+        $this->withHeaders($this->headersPara($general))
+            ->getJson('/api/v1/admin/tiempo-real/acceso')
+            ->assertOk()->assertJsonCount(1, 'data.empresa_ids');
+    }
+
     public function test_admin_general_ve_todas_las_empresas(): void
     {
         Empresa::factory()->count(2)->create();

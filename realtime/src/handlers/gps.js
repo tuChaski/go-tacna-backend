@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { updatePosition, markStopped, getMicro } from '../services/fleetState.js';
+import { updatePosition, markStopped, getMicro, startTrip } from '../services/fleetState.js';
 import { toMicroDto } from '../services/microDto.js';
 
 const router = Router();
 
 function validarGPS({ lat, lng, speed }) {
-  if (typeof lat !== 'number' || typeof lng !== 'number' || typeof speed !== 'number') {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(speed)) {
     return 'Datos GPS inválidos: lat, lng y speed deben ser números';
   }
   if (lat < -90 || lat > 90) return 'Latitud fuera de rango [-90, 90]';
@@ -14,26 +14,35 @@ function validarGPS({ lat, lng, speed }) {
   return null;
 }
 
+router.post('/start', (req, res) => {
+  startTrip(req.conductor.microId);
+  res.json({ ok: true });
+});
+
 router.post('/position', (req, res) => {
   const error = validarGPS(req.body);
   if (error) return res.status(400).json({ error });
 
-  const { microId, rutaId } = req.conductor;
+  const { microId, rutaId, empresaId } = req.conductor;
   const { lat, lng, speed } = req.body;
 
-  updatePosition(microId, { lat, lng, speed, rutaId });
+  if (!updatePosition(microId, { lat, lng, speed, rutaId, empresaId })) {
+    return res.status(409).json({ error: 'El recorrido está finalizado.' });
+  }
 
   const micro = getMicro(microId);
   req.io.to(`ruta:${rutaId}`).emit('micro:position', toMicroDto(micro));
+  if (empresaId) req.io.of('/admin').to(`empresa:${empresaId}`).emit('micro:position', toMicroDto(micro));
 
   res.status(202).json({ ok: true });
 });
 
 router.post('/stop', (req, res) => {
-  const { microId, rutaId } = req.conductor;
+  const { microId, rutaId, empresaId } = req.conductor;
 
   markStopped(microId);
   req.io.to(`ruta:${rutaId}`).emit('micro:stopped', { microId });
+  if (empresaId) req.io.of('/admin').to(`empresa:${empresaId}`).emit('micro:stopped', { microId });
 
   res.json({ ok: true });
 });

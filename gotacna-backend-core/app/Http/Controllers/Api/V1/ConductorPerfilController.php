@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ConductorPerfil\ConductorPerfilRequest;
+use App\Http\Resources\ConductorMicroResource;
 use App\Http\Resources\ConductorPerfilResource;
 use App\Models\ConductorPerfil;
 use App\Models\Usuario;
@@ -143,6 +144,13 @@ class ConductorPerfilController extends Controller
             ], 409);
         }
 
+        if ($conductor->asignaciones()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No puedes eliminar un conductor con historial de asignaciones. Desactívalo en su lugar.',
+            ], 409);
+        }
+
         $conductor->delete();
 
         return $this->respuesta(null, 'Conductor eliminado correctamente.');
@@ -193,5 +201,43 @@ class ConductorPerfilController extends Controller
         return (new ConductorPerfilResource($conductor))
             ->additional(['success' => true])
             ->response();
+    }
+
+    /**
+     * Estado mínimo de la asignación vigente para verificar reportes de tiempo real.
+     */
+    public function asignacionActual(): JsonResponse
+    {
+        /** @var Usuario $usuario */
+        $usuario = auth('api')->user();
+        $conductor = ConductorPerfil::query()
+            ->with(['microActual.ruta', 'microActual.empresa'])
+            ->where('usuario_id', $usuario->id)
+            ->first();
+        $micro = $conductor?->microActual;
+
+        abort_unless($micro && $micro->ruta?->activo && $micro->empresa?->activo
+            && (int) $conductor->empresa_id === (int) $micro->empresa_id, 403);
+
+        return response()->json([
+            'data' => [
+                'micro_id' => $micro->id,
+                'ruta_id' => $micro->ruta_id,
+                'empresa_id' => $micro->empresa_id,
+            ],
+        ]);
+    }
+
+    public function misAsignaciones(Request $request): JsonResponse
+    {
+        /** @var Usuario $usuario */
+        $usuario = auth('api')->user();
+        $conductor = ConductorPerfil::query()->where('usuario_id', $usuario->id)->firstOrFail();
+
+        $asignaciones = $conductor->asignaciones()->with('micro')
+            ->latest('fecha_inicio')->paginate($request->integer('per_page', 15));
+
+        return ConductorMicroResource::collection($asignaciones)
+            ->additional(['success' => true])->response();
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Models\AdministradorEmpresaPerfil;
+use App\Models\ConductorPerfil;
 use App\Models\Empresa;
 use App\Models\Micro;
 use App\Models\Ruta;
@@ -52,6 +53,28 @@ class RutaTest extends TestCase
 
         $this->getJson('/api/v1/rutas/'.$inactiva->id)
             ->assertNotFound();
+    }
+
+    public function test_ruta_publica_filtra_empresa_y_micros_inactivos_anidados(): void
+    {
+        $empresa = Empresa::factory()->create();
+        $ruta = Ruta::factory()->create(['empresa_id' => $empresa->id]);
+        $conductor = ConductorPerfil::factory()->create(['empresa_id' => $empresa->id]);
+        Micro::factory()->create([
+            'empresa_id' => $empresa->id,
+            'ruta_id' => $ruta->id,
+            'conductor_actual_id' => $conductor->id,
+            'estado' => 'disponible',
+        ]);
+        Micro::factory()->create(['empresa_id' => $empresa->id, 'ruta_id' => $ruta->id, 'estado' => 'mantenimiento']);
+
+        $this->getJson('/api/v1/rutas/'.$ruta->id)
+            ->assertOk()->assertJsonCount(1, 'data.micros')
+            ->assertJsonMissingPath('data.micros.0.conductor_actual');
+
+        $empresa->update(['activo' => false]);
+        $this->getJson('/api/v1/rutas')->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/v1/rutas/'.$ruta->id)->assertNotFound();
     }
 
     public function test_admin_general_puede_crear_ruta_con_trazado_geojson(): void

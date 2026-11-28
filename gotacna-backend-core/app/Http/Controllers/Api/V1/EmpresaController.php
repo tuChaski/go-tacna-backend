@@ -6,11 +6,28 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Empresa\EmpresaRequest;
 use App\Http\Resources\EmpresaResource;
 use App\Models\Empresa;
+use App\Models\Usuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class EmpresaController extends Controller
 {
+    /**
+     * Empresas activas que el administrador puede seguir en tiempo real.
+     */
+    public function accesoTiempoReal(): JsonResponse
+    {
+        /** @var Usuario $usuario */
+        $usuario = auth('api')->user();
+        $query = Empresa::query()->where('activo', true);
+        $this->aplicaAlcanceEmpresa($query, 'id', $usuario);
+        $ids = $query->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        abort_if($ids === [], 403);
+
+        return response()->json(['data' => ['empresa_ids' => $ids]]);
+    }
+
     public function index(Request $request)
     {
         $usuario = $this->usuarioActual();
