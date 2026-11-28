@@ -47,6 +47,8 @@ Para trabajar **sin Docker**, prepara PostgreSQL 16 con PostGIS, PHP con `sodium
 
 ## Estado funcional
 
-La API gestiona rutas con **un trazado** `LineString` por ruta. El esquema actual no contiene paraderos ni trazados separados de ida y vuelta. El servicio `realtime` conserva posiciones y muestras de velocidad en memoria; `route:joined` y `micro:position` publican solo los campos del contrato `Micro`. El ETA es aproximado y no considera tráfico ni recorrido por calles.
+La API gestiona rutas con **un trazado** `LineString` por ruta. El esquema actual no contiene paraderos ni trazados separados de ida y vuelta; ninguno es obligatorio para el seguimiento actual. Laravel guarda cada GPS aceptado en `posiciones_gps`; Node conserva el estado vivo y las muestras de velocidad en memoria. Al reiniciar, Node recupera la última posición de los micros que continúan en recorrido desde Laravel antes de aceptar sockets. `route:joined`, `fleet:joined` y `micro:position` publican solo los campos del contrato `Micro`. El ETA es aproximado y no considera tráfico ni recorrido por calles.
+
+Esta rama también contiene historial fechado de asignaciones conductor–micro, favoritos y viajes propios del pasajero, y seguimiento administrativo por empresa en `/admin`. La [guía de estado del backend](../rutas-en-tiempo-real-docs/general/estado-backend.md) enumera los endpoints y las comprobaciones pendientes. El servicio Node se explica en [realtime/README.md](realtime/README.md).
 
 Contratos: [documentación del proyecto](../rutas-en-tiempo-real-docs/contratos/).
