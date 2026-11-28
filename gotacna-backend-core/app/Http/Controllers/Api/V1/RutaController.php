@@ -17,7 +17,7 @@ class RutaController extends Controller
     public function index(Request $request)
     {
         $usuario = $this->usuarioActual();
-        $esAdmin = $usuario && in_array($usuario->rol, ['admin_general', 'admin_empresa'], true);
+        $esAdmin = $usuario?->activo && in_array($usuario->rol, ['admin_general', 'admin_empresa'], true);
 
         $query = $this->consultaConTrazado()->with('empresa');
 
@@ -28,7 +28,7 @@ class RutaController extends Controller
                 $query->where('activo', true);
             }
         } else {
-            $query->where('activo', true);
+            $query->where('activo', true)->whereHas('empresa', fn ($q) => $q->where('activo', true));
         }
 
         if ($request->filled('empresa_id')) {
@@ -51,16 +51,17 @@ class RutaController extends Controller
     public function show(Request $request, Ruta $ruta): JsonResponse
     {
         $usuario = $this->usuarioActual();
-        $esAdmin = $usuario && in_array($usuario->rol, ['admin_general', 'admin_empresa'], true);
+        $esAdmin = $usuario?->activo && in_array($usuario->rol, ['admin_general', 'admin_empresa'], true);
 
         if ($esAdmin) {
             $this->verificaEmpresa((int) $ruta->empresa_id, $usuario);
-        } elseif (! $ruta->activo) {
-            abort(404, 'Ruta no encontrada.');
+        } else {
+            abort_unless($ruta->activo && $ruta->empresa()->where('activo', true)->exists(), 404);
         }
 
+        $micros = fn ($q) => $q->whereIn('estado', ['disponible', 'en_recorrido']);
         $ruta = $this->consultaConTrazado()
-            ->with(['empresa', 'micros'])
+            ->with($esAdmin ? ['empresa', 'micros'] : ['empresa', 'micros' => $micros])
             ->findOrFail($ruta->id);
 
         return (new RutaResource($ruta))
@@ -125,6 +126,13 @@ class RutaController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'No puedes eliminar una ruta que tiene micros asignados.',
+            ], 409);
+        }
+
+        if ($ruta->historialRecorridos()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No puedes eliminar una ruta con viajes registrados. Desactívala en su lugar.',
             ], 409);
         }
 

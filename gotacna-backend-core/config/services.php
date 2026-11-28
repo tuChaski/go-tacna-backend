@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'realtime' => [
+        'url' => env('REALTIME_INTERNAL_URL', 'http://websocket:3001'),
+    ],
+
 ];

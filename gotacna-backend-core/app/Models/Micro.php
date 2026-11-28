@@ -12,6 +12,34 @@ class Micro extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::created(function (Micro $micro): void {
+            if ($micro->conductor_actual_id !== null) {
+                $micro->asignaciones()->create([
+                    'conductor_perfil_id' => $micro->conductor_actual_id,
+                    'fecha_inicio' => now(),
+                ]);
+            }
+        });
+
+        static::updated(function (Micro $micro): void {
+            if (! $micro->wasChanged('conductor_actual_id')) {
+                return;
+            }
+
+            $fechaCambio = now();
+            $micro->asignaciones()->whereNull('fecha_fin')->update(['fecha_fin' => $fechaCambio]);
+
+            if ($micro->conductor_actual_id !== null) {
+                $micro->asignaciones()->create([
+                    'conductor_perfil_id' => $micro->conductor_actual_id,
+                    'fecha_inicio' => $fechaCambio,
+                ]);
+            }
+        });
+    }
+
     protected $table = 'micros';
 
     protected $fillable = [
@@ -40,6 +68,16 @@ class Micro extends Model
     public function conductorActual(): BelongsTo
     {
         return $this->belongsTo(ConductorPerfil::class, 'conductor_actual_id');
+    }
+
+    public function asignaciones(): HasMany
+    {
+        return $this->hasMany(ConductorMicro::class, 'micro_id');
+    }
+
+    public function historialRecorridos(): HasMany
+    {
+        return $this->hasMany(HistorialRecorrido::class, 'micro_id');
     }
 
     public function posiciones(): HasMany

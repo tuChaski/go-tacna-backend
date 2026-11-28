@@ -95,6 +95,16 @@ class Usuario extends Authenticatable implements JWTSubject
         return $this->hasMany(Suscripcion::class, 'usuario_id');
     }
 
+    public function favoritos(): HasMany
+    {
+        return $this->hasMany(Favorito::class, 'usuario_id');
+    }
+
+    public function historialRecorridos(): HasMany
+    {
+        return $this->hasMany(HistorialRecorrido::class, 'usuario_id');
+    }
+
     public function microsOperados(): HasManyThrough
     {
         return $this->hasManyThrough(

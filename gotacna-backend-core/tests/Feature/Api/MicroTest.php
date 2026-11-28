@@ -6,6 +6,7 @@ use App\Models\AdministradorEmpresaPerfil;
 use App\Models\ConductorPerfil;
 use App\Models\Empresa;
 use App\Models\Micro;
+use App\Models\PosicionGps;
 use App\Models\Ruta;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,6 +39,52 @@ class MicroTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.placa', 'AAA-111');
+    }
+
+    public function test_consultas_publicas_no_exponen_conductor_ni_historial_y_aplican_los_mismos_filtros(): void
+    {
+        $empresa = Empresa::factory()->create();
+        $ruta = Ruta::factory()->create(['empresa_id' => $empresa->id]);
+        $conductor = ConductorPerfil::factory()->create(['empresa_id' => $empresa->id]);
+        $micro = Micro::factory()->create([
+            'empresa_id' => $empresa->id,
+            'ruta_id' => $ruta->id,
+            'conductor_actual_id' => $conductor->id,
+        ]);
+        PosicionGps::factory()->create(['micro_id' => $micro->id]);
+
+        foreach (['/api/v1/micros/activos', '/api/v1/micros/'.$micro->id] as $url) {
+            $respuesta = $this->getJson($url)->assertOk();
+            $datos = $respuesta->json(str_ends_with($url, 'activos') ? 'data.0' : 'data');
+            $this->assertSame($micro->placa, $datos['placa']);
+            $this->assertArrayNotHasKey('conductor_actual', $datos);
+            $this->assertArrayNotHasKey('conductor_actual_id', $datos);
+            $this->assertArrayNotHasKey('posiciones', $datos);
+            $this->assertArrayHasKey('fecha_hora', $datos['ultima_posicion']);
+        }
+
+        $ruta->update(['activo' => false]);
+        $this->getJson('/api/v1/micros/activos')->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/v1/micros/'.$micro->id)->assertNotFound();
+
+        $ruta->update(['activo' => true]);
+        $empresa->update(['activo' => false]);
+        $this->getJson('/api/v1/micros/activos')->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/v1/micros/'.$micro->id)->assertNotFound();
+
+        $empresa->update(['activo' => true]);
+        $pasajero = Usuario::factory()->pasajero()->create();
+        $this->withHeaders($this->headersPara($pasajero))
+            ->getJson('/api/v1/micros/'.$micro->id)
+            ->assertOk()->assertJsonMissingPath('data.conductor_actual');
+
+        app('tymon.jwt')->unsetToken();
+        app('auth')->forgetGuards();
+        $admin = Usuario::factory()->adminGeneral()->create();
+        $this->withHeaders($this->headersPara($admin))
+            ->getJson('/api/v1/micros/'.$micro->id)
+            ->assertOk()->assertJsonPath('data.conductor_actual.licencia_conducir', $conductor->licencia_conducir);
+
     }
 
     public function test_admin_general_crea_un_micro(): void
@@ -97,6 +144,56 @@ class MicroTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('conductor_actual_id');
+    }
+
+    public function test_cambiar_conductor_conserva_las_fechas_de_asignacion(): void
+    {
+        $admin = Usuario::factory()->adminGeneral()->create();
+        $empresa = Empresa::factory()->create();
+        $primero = ConductorPerfil::factory()->create(['empresa_id' => $empresa->id]);
+        $segundo = ConductorPerfil::factory()->create(['empresa_id' => $empresa->id]);
+        $micro = Micro::factory()->create([
+            'empresa_id' => $empresa->id,
+            'conductor_actual_id' => $primero->id,
+        ]);
+
+        $this->assertDatabaseHas('conductores_micro', [
+            'micro_id' => $micro->id,
+            'conductor_perfil_id' => $primero->id,
+            'fecha_inicio_estimada' => false,
+            'fecha_fin' => null,
+        ]);
+
+        $this->withHeaders($this->headersPara($admin))
+            ->patchJson('/api/v1/micros/'.$micro->id, ['conductor_actual_id' => $segundo->id])
+            ->assertOk();
+
+        $this->assertDatabaseCount('conductores_micro', 2);
+        $this->assertNotNull($micro->asignaciones()->where('conductor_perfil_id', $primero->id)->firstOrFail()->fecha_fin);
+        $this->assertNotNull($micro->asignaciones()->where('conductor_perfil_id', $segundo->id)->firstOrFail()->fecha_inicio);
+
+        $this->withHeaders($this->headersPara($admin))
+            ->getJson('/api/v1/micros/'.$micro->id.'/asignaciones')
+            ->assertOk()->assertJsonPath('meta.total', 2);
+
+        $this->withHeaders($this->headersPara($admin))
+            ->deleteJson('/api/v1/micros/'.$micro->id)
+            ->assertStatus(409);
+
+        app('tymon.jwt')->unsetToken();
+        app('auth')->forgetGuards();
+        $this->withHeaders($this->headersPara($segundo->usuario))
+            ->getJson('/api/v1/conductor/asignaciones')
+            ->assertOk()->assertJsonPath('meta.total', 1);
+
+        app('tymon.jwt')->unsetToken();
+        app('auth')->forgetGuards();
+        $this->withHeaders($this->headersPara($admin))
+            ->patchJson('/api/v1/micros/'.$micro->id, ['conductor_actual_id' => null])
+            ->assertOk();
+
+        $this->assertDatabaseCount('conductores_micro', 2);
+        $this->assertSame(0, $micro->asignaciones()->whereNull('fecha_fin')->count());
     }
 
     public function test_admin_empresa_solo_gestiona_sus_micros(): void

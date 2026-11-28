@@ -34,6 +34,11 @@ class Ruta extends Model
         return $this->hasMany(Micro::class, 'ruta_id');
     }
 
+    public function historialRecorridos(): HasMany
+    {
+        return $this->hasMany(HistorialRecorrido::class, 'ruta_id');
+    }
+
     /**
      * Devuelve el trazado como GeoJSON sin importar el motor de base de datos.
      */

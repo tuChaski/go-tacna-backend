@@ -5,9 +5,11 @@ import cors from 'cors';
 import { env } from './config/env.js';
 import gpsRouter from './handlers/gps.js';
 import { passengerHandler } from './handlers/passenger.js';
+import { registerAdminNamespace } from './handlers/admin.js';
 import { authMiddleware } from './middleware/auth.js';
 import { trackingRateLimit } from './middleware/rateLimit.js';
 import { startOfflineChecker } from './services/fleetState.js';
+import { startFleetRecovery } from './services/fleetRecovery.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -28,7 +30,9 @@ app.use('/tracking', authMiddleware, trackingRateLimit, (req, res, next) => {
 io.on('connection', (socket) => {
   passengerHandler(socket, io);
 });
+registerAdminNamespace(io, undefined, env.adminRecheckMs);
 
+await startFleetRecovery();
 startOfflineChecker(io, env.offlineAfterMs);
 
 httpServer.listen(env.port, () => {

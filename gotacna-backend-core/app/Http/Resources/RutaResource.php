@@ -21,7 +21,10 @@ class RutaResource extends JsonResource
             ),
             'micros' => $this->when(
                 $this->relationLoaded('micros'),
-                fn () => MicroResource::collection($this->micros)
+                fn () => $request->user('api')?->activo
+                    && in_array($request->user('api')?->rol, ['admin_general', 'admin_empresa'], true)
+                    ? MicroResource::collection($this->micros)
+                    : MicroPublicResource::collection($this->micros)
             ),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

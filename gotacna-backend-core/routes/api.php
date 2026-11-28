@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\V1\Conductor\PosicionController as ConductorPosicio
 use App\Http\Controllers\Api\V1\ConductorPerfilController;
 use App\Http\Controllers\Api\V1\EmpresaController;
 use App\Http\Controllers\Api\V1\MicroController;
+use App\Http\Controllers\Api\V1\Pasajero\FavoritoController as PasajeroFavoritoController;
+use App\Http\Controllers\Api\V1\Pasajero\HistorialRecorridoController as PasajeroHistorialRecorridoController;
 use App\Http\Controllers\Api\V1\Pasajero\SuscripcionController as PasajeroSuscripcionController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\PosicionGpsController;
@@ -14,7 +16,7 @@ use App\Http\Controllers\Api\V1\SuscripcionController;
 use App\Http\Controllers\Api\V1\UsuarioController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
@@ -62,6 +64,16 @@ Route::prefix('v1')->group(function () {
                 'mis-suscripciones/{suscripcion}/cancelar',
                 [PasajeroSuscripcionController::class, 'cancelar']
             );
+
+            Route::get('mis-favoritos', [PasajeroFavoritoController::class, 'index']);
+            Route::post('mis-favoritos', [PasajeroFavoritoController::class, 'store']);
+            Route::delete('mis-favoritos/{favorito}', [PasajeroFavoritoController::class, 'destroy']);
+
+            Route::get('mi-historial', [PasajeroHistorialRecorridoController::class, 'index']);
+            Route::post('mi-historial', [PasajeroHistorialRecorridoController::class, 'store']);
+            Route::get('mi-historial/{recorrido}', [PasajeroHistorialRecorridoController::class, 'show']);
+            Route::patch('mi-historial/{recorrido}/finalizar', [PasajeroHistorialRecorridoController::class, 'finalizar']);
+            Route::delete('mi-historial/{recorrido}', [PasajeroHistorialRecorridoController::class, 'destroy']);
         });
 
         /*
@@ -71,12 +83,18 @@ Route::prefix('v1')->group(function () {
         */
         Route::middleware('role:conductor')->group(function () {
             Route::get('conductor/perfil', [ConductorPerfilController::class, 'perfil']);
-            Route::post('conductor/posicion', [ConductorPosicionController::class, 'store']);
-            Route::post('conductor/finalizar', [ConductorPosicionController::class, 'finalizar']);
+            Route::get('conductor/asignacion-actual', [ConductorPerfilController::class, 'asignacionActual']);
+            Route::get('conductor/asignaciones', [ConductorPerfilController::class, 'misAsignaciones']);
+            Route::middleware('throttle:tracking')->group(function () {
+                Route::post('conductor/iniciar', [ConductorPosicionController::class, 'iniciar']);
+                Route::post('conductor/posicion', [ConductorPosicionController::class, 'store']);
+                Route::post('conductor/finalizar', [ConductorPosicionController::class, 'finalizar']);
 
-            // Alias usados por la documentación de tracking.
-            Route::post('tracking/position', [ConductorPosicionController::class, 'store']);
-            Route::post('tracking/stop', [ConductorPosicionController::class, 'finalizar']);
+                // Alias usados por la documentación de tracking.
+                Route::post('tracking/position', [ConductorPosicionController::class, 'store'])
+                    ->name('tracking.position');
+                Route::post('tracking/stop', [ConductorPosicionController::class, 'finalizar']);
+            });
         });
 
         /*
@@ -85,6 +103,7 @@ Route::prefix('v1')->group(function () {
         |----------------------------------------------------------------------
         */
         Route::middleware('role:admin_general,admin_empresa')->group(function () {
+            Route::get('admin/tiempo-real/acceso', [EmpresaController::class, 'accesoTiempoReal']);
             // Empresas
             Route::apiResource('empresas', EmpresaController::class);
             Route::patch('empresas/{empresa}/estado', [EmpresaController::class, 'estado']);
@@ -93,6 +112,8 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('conductores', ConductorPerfilController::class)
                 ->parameters(['conductores' => 'conductor']);
             Route::patch('conductores/{conductor}/estado', [ConductorPerfilController::class, 'estado']);
+
+            Route::get('micros/{micro}/asignaciones', [MicroController::class, 'asignaciones']);
 
             // Rutas: la lectura pública está declarada arriba.
             Route::post('rutas', [RutaController::class, 'store']);

@@ -40,4 +40,9 @@ class ConductorPerfil extends Model
     {
         return $this->hasMany(Micro::class, 'conductor_actual_id');
     }
+
+    public function asignaciones(): HasMany
+    {
+        return $this->hasMany(ConductorMicro::class, 'conductor_perfil_id');
+    }
 }
