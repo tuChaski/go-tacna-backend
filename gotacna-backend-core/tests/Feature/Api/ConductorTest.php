@@ -160,8 +160,17 @@ class ConductorTest extends TestCase
                 'lng' => -70.2500,
                 'speed' => 12,
             ])
-            ->assertCreated()
-            ->assertJsonPath('data.latitud', -18.02);
+            ->assertStatus(202)
+            ->assertExactJson(['ok' => true]);
+
+        $this->withHeaders($this->headersPara($conductor->usuario))
+            ->postJson('/api/v1/tracking/position', [
+                'lat' => -18.0200,
+                'lng' => -70.2500,
+                'speed' => 12,
+                'fecha_hora' => now()->toISOString(),
+            ])
+            ->assertStatus(422);
     }
 
     public function test_posicion_no_se_guarda_si_tiempo_real_no_responde(): void

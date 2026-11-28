@@ -75,6 +75,13 @@ class PosicionController extends Controller
         }
 
         $datos = $request->validated();
+        if ($request->routeIs('tracking.position')) {
+            $datos = [
+                'latitud' => $datos['lat'],
+                'longitud' => $datos['lng'],
+                'velocidad' => $datos['speed'],
+            ];
+        }
 
         try {
             $posicion = DB::transaction(function () use ($datos, $micro, $usuario) {
@@ -110,6 +117,10 @@ class PosicionController extends Controller
         }
 
         $posicion->load('micro.ruta');
+
+        if ($request->routeIs('tracking.position')) {
+            return response()->json(['ok' => true], 202);
+        }
 
         return (new PosicionGpsResource($posicion))
             ->additional(['success' => true, 'message' => 'Posición reportada correctamente.'])

@@ -76,7 +76,8 @@ Route::prefix('v1')->group(function () {
             Route::post('conductor/finalizar', [ConductorPosicionController::class, 'finalizar']);
 
             // Alias usados por la documentación de tracking.
-            Route::post('tracking/position', [ConductorPosicionController::class, 'store']);
+            Route::post('tracking/position', [ConductorPosicionController::class, 'store'])
+                ->name('tracking.position');
             Route::post('tracking/stop', [ConductorPosicionController::class, 'finalizar']);
         });
 
